@@ -1,3 +1,4 @@
+#!POPCORN leaderboard amd-fp8-mm
 import torch
 from task import input_t, output_t
 

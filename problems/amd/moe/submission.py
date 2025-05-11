@@ -1,3 +1,4 @@
+#!POPCORN leaderboard amd-mixture-of-experts
 import math
 import torch
 import torch.nn as nn

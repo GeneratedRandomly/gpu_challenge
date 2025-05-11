@@ -29,3 +29,5 @@ POPCORN_API_URL is not set. Please set it to the URL of the Popcorn API.
 ~~~bash
 /opt/glibc-2.39/lib/ld-linux-x86-64.so.2 --library-path /opt/glibc-2.39/lib:/usr/lib/x86_64-linux-gnu ./popcorn-cli
 ~~~
+## 提交
+如果是按照上述流程，python3 commit.py -t moe或fp8或id即可。
