@@ -1,4 +1,8 @@
 #!POPCORN leaderboard amd-fp8-mm
+# This script provides a template for using load_inline to run a HIP kernel for
+import os 
+os.environ['PYTORCH_ROCM_ARCH'] = 'gfx942'
+
 from torch.utils.cpp_extension import load_inline
 from task import input_t, output_t
 CPP_WRAPPER = """
@@ -11,23 +15,25 @@ CUDA_SRC = """
 
 constexpr const int BLOCK = 128;
 
-__global__ void custom_kernel(const __hip_fp8_e4m3_fnuz* a, const __hip_fp8_e4m3_fnuz* b, const float* as, const float* bs, 
-                   __hip_bfloat16* c, int m, int n, int k) {
-                   
-    // Your implementation here
-    int cx = threadIdx.x + blockDim.x * blockIdx.x;
-    int cy = threadIdx.y + blockDim.y * blockIdx.y;
+__global__ void custom_kernel(
+    const __hip_fp8_e4m3_fnuz* a, // 输入矩阵A，FP8格式，m x k
+    const __hip_fp8_e4m3_fnuz* b, // 输入矩阵B，FP8格式，n x k
+    const float* as,              // A的scale
+    const float* bs,              // B的scale
+    __hip_bfloat16* c,            // 输出矩阵C，BF16格式
+    int m, int n, int k
+) {     
+    int cx = threadIdx.x + blockDim.x * blockIdx.x; // column
+    int cy = threadIdx.y + blockDim.y * blockIdx.y; // row
     if(cx >= m || cy >= n) return;
     
     int sn = (n + BLOCK - 1) / BLOCK;
-    
     float result = 0;
-    // split loop into an outer loop over different blocks, and an inner loop within one block.
-    // we can assume k % BLOCK == 0.
+
+    //__shared__ __hip_fp8_e4m3_fnuz a_tile[16][128]; // [blockDim.y][BLOCK]
+    //__shared__ __hip_fp8_e4m3_fnuz b_tile[16][128]; // [BLOCK][blockDim.x]
+
     for(int i = 0; i < k; i += BLOCK) {
-        // block results accumulates the inner product across a single block.
-        // within each block, scales are constant, so we can lift the scaling 
-        // outside of the inner loop.
         float block_result = 0;
         for(int ii = 0; ii < BLOCK; ++ii) {
             // load input matrix elements and convert to float for computations
@@ -56,7 +62,6 @@ void fp8_mm(torch::Tensor a, torch::Tensor b, torch::Tensor as, torch::Tensor bs
 }
 """
 
-import os
 os.environ["CXX"] = "clang++"
 
 module = load_inline(
@@ -73,4 +78,3 @@ def custom_kernel(data: input_t) -> output_t:
     a, b, a_scale, b_scale, c = data
     module.fp8_mm(a, b, a_scale, b_scale, c)
     return c
-
